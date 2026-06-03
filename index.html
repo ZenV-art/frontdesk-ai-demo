@@ -581,6 +581,7 @@ function animateCount(el) {
     if (p < 1) requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
+  setTimeout(() => { el.textContent = pre + to.toLocaleString(LOCALE) + suf; }, dur + 300); // guarantee final value even if rAF is throttled
 }
 const countObs = new IntersectionObserver((es) => {
   es.forEach(e => { if (e.isIntersecting) { animateCount(e.target); countObs.unobserve(e.target); } });
@@ -759,6 +760,7 @@ function bump(elm, to, isMoney) {
     if (p < 1) requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
+  setTimeout(() => { elm.textContent = (isMoney ? CUR : '') + to.toLocaleString(LOCALE); }, 1100); // guarantee final value even if rAF is throttled (background tab)
 }
 function renderStats() {
   bump(el('sCalls'), stats.calls);
@@ -881,7 +883,7 @@ async function startCall(mode) {
   setBanner('live', '📞', '<b>Live call in progress…</b> This call would normally roll to voicemail. Watch what happens instead.');
   setStatus('on', 'On call');
   addBubble('agent', BIZ.greeting);
-  await speak(BIZ.greeting);
+  await playClip(DEMO_AUDIO[0], BIZ.greeting);
   if (mode === 'mic' && SR) { talkMode = true; setStatus('listen', 'Listening…'); startListening(); }
   else if (state.inCall) setStatus('on', 'On call');
 }
@@ -899,7 +901,7 @@ async function handleUser(text) {
   const reply = brain(text);
   typing.remove();
   addBubble('agent', reply);
-  setStatus('speak', 'Ava is speaking…');
+  setStatus('speak', BIZ.agent + ' is speaking…');
   await speak(reply);
   if (talkMode && state.inCall && SR) { setStatus('listen', 'Listening…'); startListening(); }
   else if (state.inCall) setStatus('on', 'On call');
@@ -952,6 +954,19 @@ el('sendBtn').addEventListener('click', sendTyped);
 el('typeInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendTyped(); });
 
 /* ---------- the auto-play demo ---------- */
+/* ---------- pre-rendered premium voice (ElevenLabs) for the scripted demo ---------- */
+const DEMO_AUDIO = ['audio/a0.mp3', 'audio/a1.mp3', 'audio/a2.mp3', 'audio/a3.mp3', 'audio/a4.mp3', 'audio/a5.mp3'];
+function playClip(src, fallbackText) {
+  return new Promise(resolve => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; resolve(); };
+    const a = new Audio(src);
+    a.onended = finish;
+    a.onerror = () => { if (fallbackText) speak(fallbackText).then(finish); else finish(); };  // fallback to browser TTS if a clip fails
+    a.play().then(() => { setTimeout(finish, 22000); })   // safety cap; onended normally fires first
+            .catch(() => { if (fallbackText) speak(fallbackText).then(finish); else finish(); });
+  });
+}
 const DEMO = [
   "Hi, my AC is not cooling at all and it's really hot — can someone come today?",
   "Yes, it's Rohan Sharma.",
@@ -968,7 +983,8 @@ async function runDemo() {
   transcript.innerHTML = '';
   talkMode = false;
   await startCall('demo');
-  for (const line of DEMO) {
+  for (let i = 0; i < DEMO.length; i++) {
+    const line = DEMO[i];
     await wait(700);
     addBubble('caller', line);
     setStatus('on', 'Listening…');
@@ -978,13 +994,13 @@ async function runDemo() {
     const reply = brain(line);
     typing.remove();
     addBubble('agent', reply);
-    setStatus('speak', 'Ava is speaking…');
-    await speak(reply);
+    setStatus('speak', BIZ.agent + ' is speaking…');
+    await playClip(DEMO_AUDIO[i + 1], reply);
     setStatus('on', 'On call');
   }
   state.inCall = false;
   setStatus('ended', 'Call ended · lead captured ✓');
-  setBanner('win', '✅', '<b>One call. One booked job. Zero missed revenue.</b> Now imagine this running on every call, 24/7 — replay it, or pick up the mic and talk to Ava yourself.');
+  setBanner('win', '✅', '<b>One call. One booked job. Zero missed revenue.</b> Now imagine this running on every call, 24/7 — replay it, or pick up the mic and talk to Anaya yourself.');
   el('playBtn').disabled = false; el('playBtn').style.opacity = 1; el('playBtn').textContent = '↻ Replay Demo Call';
   demoRunning = false;
 }
